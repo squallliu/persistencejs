@@ -690,15 +690,12 @@ function config(persistence, dialect) {
 
     for (var i = 0; i < this._prefetchFields.length; i++) {
       var prefetchField = this._prefetchFields[i];
-      var hasOne = meta.hasOne[prefetchField];
-      if (!hasOne) {
-        continue;
-      }
-      var thisMeta = hasOne.type.meta;
+      var cj = this._calculatedJoins[prefetchField];
+      var thisMeta = cj.meta;
       if (thisMeta.isMixin)
         throw new Error("cannot prefetch a mixin");
-      var tableAlias = thisMeta.name + '_' + prefetchField + "_tbl";
-      selectFields = selectFields.concat(selectAll(thisMeta, tableAlias, prefetchField + "_"));
+      var tableAlias = cj.tableAlias;
+      selectFields = selectFields.concat(selectAll(thisMeta, tableAlias, prefetchField.replace('.', '_') + "_"));
     }
 
     // manage all calculated joins
@@ -752,28 +749,41 @@ function config(persistence, dialect) {
         if (that._reverse) {
           rows.reverse();
         }
+
+        var objectification = {};
         for (var i = 0; i < rows.length; i++) {
           var r = rows[i];
-          var e = rowToEntity(session, entityName, r, mainPrefix);
-          for (var j = 0; j < that._prefetchFields.length; j++) {
-
-            var prefetchFieldParts = that._prefetchFields[j].split('.');
-            var prefetchField = prefetchFieldParts[0];
-            var eName = entityName;
-            if (prefetchFieldParts.length > 1) {
-              prefetchField = prefetchFieldParts[1];
-              eName = prefetchFieldParts[0];
-            }
-            var theMeta = persistence.getMeta(eName);
-            var hasOne = theMeta.hasOne[prefetchField];
-            if (!hasOne) {
-              continue;
-            }
-            var thisMeta = hasOne.type.meta;
-
-            e._data_obj[prefetchField] = rowToEntity(session, thisMeta.name, r, prefetchField + '_');
-            session.add(e._data_obj[prefetchField]);
+          var id = r[mainPrefix + 'id'];
+          if (objectification[id]) {
+            continue;
           }
+
+          var e = rowToEntity(session, entityName, r, mainPrefix);
+          objectification[id] = e;
+
+          for (var j = 0; j < that._prefetchFields.length; j++) {
+            var cjs = that._prefetchFields[j].split('.');
+            var cj = '';
+            var prefix = '';
+            var obj = e;
+            for (var k = 0; k < cjs.length; k++) {
+              var prefetchField = cjs[k];
+              cj += (k != 0 ? '.' : '') + prefetchField;
+              prefix += (k != 0 ? '_' : '') + prefetchField;
+              var cjMeta = that._calculatedJoins[cj];
+              if (!cjMeta.hasOne) {
+                // TODO: 实现hasMany结果映射
+                continue;
+              }
+
+              var thisMeta = cjMeta.meta;
+              obj._data_obj[prefetchField] = rowToEntity(session, thisMeta.name, r, prefix + '_');
+              session.add(obj._data_obj[prefetchField]);
+
+              obj = obj._data_obj[prefetchField];
+            }
+          }
+
           results.push(e);
           session.add(e);
         }

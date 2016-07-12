@@ -1787,8 +1787,12 @@ function initPersistence(persistence) {
         cj += (i != 0 ? '.' : '') + cjs[i];
         var mappedCj = this._calculatedJoins[cj];
         if (!mappedCj) {
+          var hasOne = true;
           var currentMeta = cjSqlMeta.meta.hasOne[cjs[i]];
-          if (!currentMeta) currentMeta = cjSqlMeta.meta.hasMany[cjs[i]];
+          if (!currentMeta) {
+            hasOne = false;
+            currentMeta = cjSqlMeta.meta.hasMany[cjs[i]];
+          }
           if (!currentMeta) {
             console.log('Cannot extract metadatas for property ' + property);
             return property;
@@ -1797,7 +1801,8 @@ function initPersistence(persistence) {
             refProperty: cjs[i],
             refTableAlias: cjSqlMeta.tableAlias,
             tableAlias: currentMeta.type.meta.name + '_' + cjs[i] + '_tbl',
-            meta: currentMeta.type.meta
+            meta: currentMeta.type.meta,
+            hasOne: hasOne
           };
           this._calculatedJoins[cj] = newCjSqlMeta;
           cjSqlMeta = newCjSqlMeta;
