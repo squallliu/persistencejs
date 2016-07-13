@@ -759,7 +759,7 @@ function config(persistence, dialect) {
           }
 
           var e = rowToEntity(session, entityName, r, mainPrefix);
-          objectification[id] = e;
+          objectification[id] = true;
 
           for (var j = 0; j < that._prefetchFields.length; j++) {
             var cjs = that._prefetchFields[j].split('.');
@@ -770,17 +770,22 @@ function config(persistence, dialect) {
               var prefetchField = cjs[k];
               cj += (k != 0 ? '.' : '') + prefetchField;
               prefix += (k != 0 ? '_' : '') + prefetchField;
+
               var cjMeta = that._calculatedJoins[cj];
-              if (!cjMeta.hasOne) {
-                // TODO: 实现hasMany结果映射
-                continue;
+              var thisMeta = cjMeta.meta;
+              var prefetchObj = rowToEntity(session, thisMeta.name, r, prefix + '_');
+
+              if (cjMeta.hasOne) {
+                obj._data_obj[prefetchField] = prefetchObj;
+              } else {
+                if (!obj._data_obj[prefetchField]) {
+                  obj._data_obj[prefetchField] = [];
+                }
+                obj._data_obj[prefetchField].push(prefetchObj);
               }
 
-              var thisMeta = cjMeta.meta;
-              obj._data_obj[prefetchField] = rowToEntity(session, thisMeta.name, r, prefix + '_');
-              session.add(obj._data_obj[prefetchField]);
-
-              obj = obj._data_obj[prefetchField];
+              session.add(prefetchObj);
+              obj = prefetchObj;
             }
           }
 
